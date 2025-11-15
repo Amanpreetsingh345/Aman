@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Federated Learning for IoT (HTML + JS)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.13.0/dist/tf.min.js"></script>
+</head>
+
+<body style="font-family: Arial; padding: 20px;">
+<h1>Federated Learning Framework (Cloud-based IoT Privacy)</h1>
+<p>This demo simulates IoT devices training locally and sending only model weights to the cloud server.</p>
+
+<button onclick="runFederatedLearning()">Run Federated Learning</button>
+
+<pre id="output"></pre>
+
+<script>
+function log(msg) {
+    document.getElementById("output").textContent += msg + "\n";
+}
+
+// ------------------ Model Definition ------------------
+function createModel() {
+    const model = tf.sequential();
+    model.add(tf.layers.dense({ units: 16, activation: 'relu', inputShape: [5] }));
+    model.add(tf.layers.dense({ units: 2, activation: 'softmax' }));
+    model.compile({
+        optimizer: tf.train.adam(0.01),
+        loss: 'categoricalCrossentropy',
+        metrics: ['accuracy']
+    });
+    return model;
+}
+
+// ------------------ Dummy IoT Data ------------------
+function generateIoTData(samples = 50) {
+    const X = tf.randomNormal([samples, 5]);
+    const y = tf.oneHot(tf.randomUniform([samples], 0, 2, 'int32'), 2);
+    return { X, y };
+}
+
+// ------------------ Local Training on Device ------------------
+async function localTrain(model, data, epochs = 3) {
+    await model.fit(data.X, data.y, {
+        epochs,
+        batchSize: 16,
+        verbose: 0
+    });
+    return model.getWeights();
+}
+
+// ------------------ Server FedAvg Aggregation ------------------
+function fedAvg(allWeights) {
+    const avgWeights = [];
+
+    for (let layer = 0; layer < allWeights[0].length; layer++) {
+
+        // Start with zeros tensor of same shape
+        let sumTensor = tf.zerosLike(allWeights[0][layer]);
+
+        // Sum all device weights
+        allWeights.forEach(w => {
+            sumTensor = sumTensor.add(w[layer]);
+        });
+
+        // Average
+        avgWeights[layer] = sumTensor.div(allWeights.length);
+    }
+
+    return avgWeights;
+}
+
+// ------------------ Federated Learning Simulation ------------------
+async function runFederatedLearning() {
+    document.getElementById("output").textContent = ""; // clear
+
+    log("Starting Federated Learning...");
+
+    const NUM_DEVICES = 3;
+    const ROUNDS = 5;
+
+    // Cloud global model
+    let globalModel = createModel();
+
+    // Simulated IoT devices
+    const devices = [];
+    for (let i = 0; i < NUM_DEVICES; i++) {
+        devices.push(generateIoTData());
+    }
+
+    // ---- Federated Rounds ----
+    for (let r = 0; r < ROUNDS; r++) {
+        log(`\n--- Round ${r + 1} ---`);
+
+        // Collect all weight updates from devices
+        const updates = [];
+
+        for (let i = 0; i < NUM_DEVICES; i++) {
+            log(`Device ${i + 1} training locally...`);
+
+            // Each device gets the current global model
+            const localModel = createModel();
+            localModel.setWeights(globalModel.getWeights().map(w => w.clone()));
+
+            // Train locally
+            const weights = await localTrain(localModel, devices[i]);
+            updates.push(weights);
+        }
+
+        // Aggregate on server
+        log("Aggregating on cloud server...");
+        const newWeights = fedAvg(updates);
+
+        // Update global model
+        globalModel.setWeights(newWeights.map(w => w.clone()));
+        log("Global model updated.");
+    }
+
+    log("\nFederated Learning Completed.");
+}
+</script>
+</body>
+</html>
