@@ -1,0 +1,31 @@
+# device.py
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from model import IoTNet
+from utils import add_dp_noise
+
+class IoTDevice:
+    def __init__(self, device_id, data, labels, dp=True):
+        self.device_id = device_id
+        self.model = IoTNet()
+        self.data = data
+        self.labels = labels
+        self.dp = dp
+
+    def local_train(self, epochs=5, lr=0.01):
+        optimizer = optim.SGD(self.model.parameters(), lr=lr)
+        loss_fn = nn.CrossEntropyLoss()
+
+        for _ in range(epochs):
+            pred = self.model(self.data)
+            loss = loss_fn(pred, self.labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        if self.dp:
+            self.model = add_dp_noise(self.model)
+
+        return self.model.state_dict()

@@ -1,0 +1,6 @@
+federated_iot/
+│── server.py
+│── device.py
+│── model.py
+│── utils.py
+│── run_simulation.py

@@ -1,0 +1,34 @@
+# run_simulation.py
+import torch
+from device import IoTDevice
+from server import CloudServer
+
+# -------- Simulated IoT Data (10 devices) -------- #
+NUM_DEVICES = 5
+
+devices = []
+for i in range(NUM_DEVICES):
+    data = torch.randn(100, 10)
+    labels = torch.randint(0, 2, (100,))
+    devices.append(IoTDevice(i, data, labels, dp=True))
+
+# -------- Cloud Server -------- #
+server = CloudServer()
+
+# -------- Federated Learning Rounds -------- #
+ROUNDS = 5
+
+for r in range(ROUNDS):
+    print(f"\n---- Round {r+1} ----")
+
+    global_model = server.distribute_model()
+
+    client_updates = []
+    for device in devices:
+        device.model.load_state_dict(global_model)
+        update = device.local_train(epochs=3)
+        client_updates.append(update)
+
+    updated_global_model = server.aggregate(client_updates)
+
+print("\nTraining complete. Global model is ready.")

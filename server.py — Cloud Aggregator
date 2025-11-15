@@ -1,0 +1,21 @@
+# server.py
+import torch
+from model import IoTNet
+from utils import fed_avg
+
+class CloudServer:
+    def __init__(self):
+        self.global_model = IoTNet()
+
+    def aggregate(self, client_updates):
+        models = []
+        for state_dict in client_updates:
+            local_model = IoTNet()
+            local_model.load_state_dict(state_dict)
+            models.append(local_model)
+
+        self.global_model = fed_avg(models)
+        return self.global_model.state_dict()
+
+    def distribute_model(self):
+        return self.global_model.state_dict()

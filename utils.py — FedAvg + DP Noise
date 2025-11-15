@@ -1,0 +1,19 @@
+# utils.py
+import copy
+import torch
+
+def fed_avg(models):
+    global_model = copy.deepcopy(models[0])
+    for k in global_model.state_dict().keys():
+        for i in range(1, len(models)):
+            global_model.state_dict()[k] += models[i].state_dict()[k]
+        global_model.state_dict()[k] = global_model.state_dict()[k] / len(models)
+    return global_model
+
+
+def add_dp_noise(model, epsilon=1e-3):
+    with torch.no_grad():
+        for param in model.parameters():
+            noise = torch.normal(0, epsilon, size=param.data.size())
+            param.add_(noise)
+    return model
